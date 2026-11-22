@@ -125,7 +125,7 @@ function sheet(name) {
     const head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(norm);
     const old = head.indexOf('senha');
     if (old >= 0 && head.indexOf('codigo') < 0) { sh.getRange(1, old + 1).setValue('codigo'); head[old] = 'codigo'; }
-    ABAS.usuarios.forEach(c => { if (head.indexOf(c) < 0) { head.push(c); sh.getRange(1, head.length).setValue(c).setFontWeight('bold'); } });
+    ABAS.usuarios.forEach(c => { if (head.indexOf(norm(c)) < 0) { head.push(norm(c)); sh.getRange(1, head.length).setValue(c).setFontWeight('bold'); } });
   }
   return sh;
 }

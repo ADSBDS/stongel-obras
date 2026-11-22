@@ -1,5 +1,5 @@
 // Service worker do app Stongel Obras. Ao publicar mudanças, aumente VERSION.
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = 'stongel-obras-' + VERSION;
 const SHELL = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
@@ -27,8 +27,9 @@ self.addEventListener('fetch', e => {
   }
   if (url.origin !== location.origin) return;
 
-  // páginas, config.js e código: rede primeiro (atualizações chegam na hora), cache se estiver offline
-  e.respondWith(fetch(req).then(r => {
+  // páginas, config.js e código: rede primeiro, sem o cache HTTP do navegador (o GitHub Pages guarda por 10 min),
+  // para que uma URL nova do Apps Script no config.js chegue na hora; cache só se estiver offline
+  e.respondWith(fetch(req.url, { cache: 'no-cache' }).then(r => {
     if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
     return r;
   }).catch(() => caches.match(req).then(hit => hit || (req.mode === 'navigate' ? caches.match('index.html') : Response.error()))));

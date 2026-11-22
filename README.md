@@ -6,12 +6,12 @@ App web instalável (PWA) para registrar obras, preencher os formulários OB-01 
 
 ```
 Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──►  Planilha Google
-  cópia local p/ uso offline              login por código, dados,       abas: obras, forms, team, handoffs,
-  fila de envio quando sem internet        envio de e-mails               usuarios, codigos, sessoes, log
+  cópia local p/ uso offline              login e senha, dados,          abas: obras, forms, team, handoffs,
+  fila de envio quando sem internet        envio de e-mails               usuarios, acessos, sessoes, log
 ```
 
-- **Acesso:** no primeiro acesso a pessoa digita o e-mail e recebe um código de 6 dígitos. Só e-mails cadastrados na aba `usuarios` com `ativo = SIM` recebem código.
-- **Controle:** toda solicitação de código fica na aba `codigos` (pendente, usado, expirado, bloqueado, negado), e cada aparelho logado fica na aba `sessoes`.
+- **Acesso:** e-mail e senha cadastrados pelo administrador na aba `usuarios` (só entra quem tem `ativo = SIM`). Depois do login o aparelho fica conectado por 30 dias.
+- **Controle:** cada tentativa de login fica na aba `acessos` (ok, senha errada, não cadastrado, inativo, bloqueado), e cada aparelho logado fica na aba `sessoes`. Cinco senhas erradas em 15 minutos bloqueiam o e-mail por 15 minutos.
 - **Offline:** o app abre sem internet e guarda as alterações numa fila; quando a conexão volta, elas vão para a planilha. A cada 30 s o app busca o que os outros mudaram.
 - **Sem servidor configurado** (`config.js` vazio), o app funciona como a versão original: dados só no aparelho e e-mail aberto no programa de e-mail.
 
@@ -29,7 +29,7 @@ Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──�
 ### 1. Planilha e Apps Script
 1. Na conta Google que vai enviar os e-mails (ex.: obras@...), crie uma **Planilha Google** nova, por exemplo "Stongel Obras - dados".
 2. Na planilha: **Extensões → Apps Script**. Apague o conteúdo, cole o arquivo [`apps-script/Code.gs`](apps-script/Code.gs) inteiro e salve.
-3. No topo do editor, escolha a função **`configurar`** e clique em **Executar**. Aceite as permissões (aparece "app não verificado": Avançado → Acessar). Ela cria as abas e cadastra você como `admin` na aba `usuarios`.
+3. No topo do editor, escolha a função **`configurar`** e clique em **Executar**. Aceite as permissões (aparece "app não verificado": Avançado → Acessar). Ela cria as abas.
 4. **Implantar → Nova implantação → ⚙ App da Web**. *Executar como:* **Eu**. *Quem pode acessar:* **Qualquer pessoa**. Copie a URL (termina em `/exec`).
 
 ### 2. Site
@@ -40,9 +40,12 @@ Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──�
 ### 3. Liberar pessoas
 Na aba `usuarios`, uma linha por pessoa:
 
-| email | nome | papel | ativo |
-|---|---|---|---|
-| fulano@stongel.com.br | Fulano | encarregado | SIM |
+| email | nome | papel | ativo | senha |
+|---|---|---|---|---|
+| fulano@stongel.com.br | Fulano | encarregado | SIM | uma senha |
+
+- Ao digitar a senha, a planilha troca o texto por uma versão embaralhada (`sha256:...`), então ninguém consegue ler a senha depois. Para trocar a senha, é só digitar uma nova na mesma célula.
+- Cadastre você mesmo primeiro, com `papel = admin`.
 
 - Para bloquear alguém: `ativo = NÃO` (vale em até 2 minutos).
 - Para derrubar um aparelho específico: na aba `sessoes`, coluna `revogado = SIM`.
@@ -59,8 +62,8 @@ Na aba `usuarios`, uma linha por pessoa:
 ## Limites desta POC
 - Todos os usuários liberados veem todas as obras; o `papel` ainda é só informativo (permissões por papel ficam para a versão do servidor interno).
 - Se duas pessoas editarem o **mesmo formulário** ao mesmo tempo, vale a última gravação.
-- Gmail gratuito envia ~100 e-mails/dia (códigos de acesso contam); Google Workspace, ~1.500.
+- Gmail gratuito envia ~100 e-mails/dia (passagens de bastão); Google Workspace, ~1.500.
 - O repositório é público: o código e o logo ficam visíveis. Nenhum dado nem senha fica no repositório; os dados ficam na planilha.
 
 ## Próxima fase
-A migração para o servidor interno (login e senha, controle de acesso por papel) troca apenas o objeto `API` em `index.html` (`requestCode`, `verifyCode`, `list`, `bulk`, `send`, `logout`). Os dados da planilha já estão em JSON por registro, prontos para importar num banco.
+A migração para o servidor interno (login e senha, controle de acesso por papel) troca apenas o objeto `API` em `index.html` (`login`, `list`, `bulk`, `send`, `logout`). Os dados da planilha já estão em JSON por registro, prontos para importar num banco.

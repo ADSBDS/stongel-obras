@@ -444,8 +444,7 @@ const API = {
     if (auth && j && j.error === 'auth') { onAuthLost(); const e = new Error('auth'); e.code = 'auth'; throw e; }
     return j;
   },
-  requestCode: email => API.call('requestCode', { email }, false),
-  verifyCode: (email, code) => API.call('verifyCode', { email, code }, false),
+  login: (email, senha) => API.call('login', { email, senha }, false),
   list: since => API.call('list', { since }),
   bulk: ops => API.call('bulk', { ops }),
   send: msg => API.call('send', msg),
@@ -542,7 +541,7 @@ function applyUser() {
 }
 function onAuthLost() {
   SET.session = ''; SET.user = null; lsSet(LSS, SET); applyUser();
-  LOGIN = { step: 'email', email: '', msg: 'Sua sessão terminou. Entre de novo com seu e-mail.' }; render();
+  LOGIN = { email: ME.email || '', msg: 'Sua sessão terminou. Entre de novo.' }; render();
 }
 
 async function boot() {
@@ -553,51 +552,40 @@ async function boot() {
   if (ONLINE() && SET.session) { pull(); startSync(); }
 }
 
-// ================= acesso por código de e-mail =================
-let LOGIN = { step: 'email', email: '', msg: '' };
+// ================= acesso por e-mail e senha =================
+let LOGIN = { email: '', msg: '' };
 const needLogin = () => ONLINE() && !SET.session;
 function viewLogin() {
   const L = LOGIN;
-  const body = L.step === 'email'
-    ? `<p class="muted">Informe seu e-mail. Vamos enviar um código de acesso.</p>
-      <form data-login="email"><div class="f"><label>E-mail</label><input id="l_email" type="email" autocomplete="email" inputmode="email" required value="${esc(L.email)}"></div>
-      <button class="btn pri" type="submit" style="width:100%;margin-top:12px">Enviar código</button></form>`
-    : `<p class="muted">Se <b>${esc(L.email)}</b> estiver liberado, você vai receber um código de 6 dígitos (confira também o spam). Ele vale por 10 minutos.</p>
-      <form data-login="code"><div class="f"><label>Código</label><input id="l_code" class="codein" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
-      <button class="btn pri" type="submit" style="width:100%;margin-top:12px">Entrar</button></form>
-      <div class="row" style="justify-content:space-between;margin-top:12px"><button class="back" data-act="loginBack">← Trocar e-mail</button><button class="back" data-act="loginResend">Reenviar código</button></div>`;
-  return `<div class="login card"><img class="lsym" src="${SYM}" alt=""><h2>Formulários de Obras</h2>${body}
+  return `<div class="login card"><img class="lsym" src="${SYM}" alt=""><h2>Formulários de Obras</h2>
+    <p class="muted">Entre com o e-mail e a senha cadastrados pelo administrador.</p>
+    <form data-login="1">
+      <div class="f"><label>E-mail</label><input id="l_email" type="email" autocomplete="username" inputmode="email" required value="${esc(L.email)}"></div>
+      <div class="f" style="margin-top:10px"><label>Senha</label><input id="l_senha" type="password" autocomplete="current-password" required></div>
+      <button class="btn pri" type="submit" style="width:100%;margin-top:14px">Entrar</button></form>
     ${L.msg ? `<div class="warnbox" style="margin-top:12px;text-align:left">${esc(L.msg)}</div>` : ''}
-    <div class="muted" style="margin-top:16px;font-size:12px">O acesso é liberado pelo administrador do app na Stongel.</div></div>`;
+    <div class="muted" style="margin-top:16px;font-size:12px">Esqueceu a senha ou não tem acesso? Fale com o administrador do app na Stongel.</div></div>`;
 }
-async function askCode() {
+async function doLogin(email, senha) {
+  LOGIN.email = email;
   try {
-    const r = await API.requestCode(LOGIN.email);
-    if (r.ok) { LOGIN.step = 'code'; LOGIN.msg = ''; }
-    else LOGIN.msg = r.error === 'limite' ? 'Muitos códigos pedidos para este e-mail. Aguarde 15 minutos.' : r.error === 'email' ? 'E-mail inválido.' : 'Não foi possível enviar o código agora.';
-  } catch (e) { LOGIN.msg = 'Sem conexão com o servidor. Confira a internet e tente de novo.'; }
-  render(); const c = document.getElementById('l_code'); if (c) c.focus();
-}
-async function checkCode(code) {
-  try {
-    const r = await API.verifyCode(LOGIN.email, code);
+    const r = await API.login(email, senha);
     if (r.ok) {
       SET.session = r.session; SET.user = r.user; lsSet(LSS, SET); applyUser();
-      LOGIN = { step: 'email', email: '', msg: '' }; go('obras');
+      LOGIN = { email: '', msg: '' }; go('obras');
       toast('Bem-vindo' + (r.user && r.user.nome ? ', ' + r.user.nome : '') + '!');
       await pull(); startSync(); return;
     }
-    LOGIN.msg = { codigo: 'Código incorreto' + (r.restantes ? ` (${r.restantes} tentativa${r.restantes > 1 ? 's' : ''} restante${r.restantes > 1 ? 's' : ''})` : '') + '.', expirado: 'Código expirado. Peça um novo.', bloqueado: 'Muitas tentativas erradas. Peça um novo código.' }[r.error] || 'Não foi possível entrar.';
-    if (r.error === 'expirado' || r.error === 'bloqueado') LOGIN.step = 'email';
+    LOGIN.msg = r.error === 'bloqueado' ? 'Muitas tentativas erradas. Aguarde 15 minutos ou fale com o administrador.'
+      : 'E-mail ou senha incorretos' + (r.restantes > 0 && r.restantes <= 2 ? ` (mais ${r.restantes} tentativa${r.restantes > 1 ? 's' : ''} antes do bloqueio)` : '') + '.';
   } catch (e) { LOGIN.msg = 'Sem conexão com o servidor. Confira a internet e tente de novo.'; }
-  render();
+  render(); const el = document.getElementById(LOGIN.email ? 'l_senha' : 'l_email'); if (el) el.focus();
 }
 document.addEventListener('submit', e => {
   const f = e.target.closest('[data-login]'); if (!f) return;
   e.preventDefault();
-  const b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Aguarde…'; }
-  if (f.dataset.login === 'email') { LOGIN.email = document.getElementById('l_email').value.trim().toLowerCase(); askCode(); }
-  else checkCode(document.getElementById('l_code').value);
+  const b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
+  doLogin(document.getElementById('l_email').value.trim().toLowerCase(), document.getElementById('l_senha').value);
 });
 function logoutModal() {
   showModal(`<h3>Sair deste aparelho?</h3>
@@ -1013,14 +1001,14 @@ function viewAjustes() {
     <div class="info">Configuração única, feita pelo administrador. O passo a passo completo está no README do repositório.</div>
     <ol style="font-size:14px;line-height:1.7;margin-top:0">
       <li>Crie uma Planilha Google na conta que vai enviar os e-mails e abra <b>Extensões → Apps Script</b>.</li>
-      <li>Cole o código abaixo, selecione a função <b>configurar</b> e clique em <b>Executar</b> (aceite as permissões). Ela cria as abas e cadastra você como admin.</li>
+      <li>Cole o código abaixo, selecione a função <b>configurar</b> e clique em <b>Executar</b> (aceite as permissões). Ela cria as abas.</li>
       <li><b>Implantar → Nova implantação → App da Web</b>. Executar como: <b>Eu</b>. Quem pode acessar: <b>Qualquer pessoa</b>. Copie a URL.</li>
       <li>Coloque a URL no arquivo <b>config.js</b> do site (vale para todos) ou, para testar só neste aparelho, no campo abaixo.</li>
-      <li>Para liberar alguém, adicione o e-mail na aba <b>usuarios</b> com ativo = <b>SIM</b>.</li></ol>
+      <li>Para liberar alguém, preencha na aba <b>usuarios</b>: e-mail, nome, papel, ativo = <b>SIM</b> e uma senha (a planilha embaralha a senha ao digitar). Use papel = <b>admin</b> para quem administra.</li></ol>
     <div class="row"><a class="btn sm" href="${GAS_URL}" target="_blank" rel="noopener" style="text-decoration:none">Ver código</a><button class="btn sm" data-act="copyGas">Copiar código</button></div>
     <div class="fields" style="margin-top:14px"><div class="f wide"><label>URL do App da Web neste aparelho ${CFG.scriptUrl ? '(opcional: substitui a do config.js)' : ''}</label><input id="s_url" value="${esc(SET.scriptUrl || '')}" placeholder="${esc(CFG.scriptUrl || 'https://script.google.com/macros/s/.../exec')}"></div></div>
     <div class="row" style="margin-top:10px"><button class="btn pri" data-act="saveSet">Salvar</button></div>
-    <div class="note">Contas Gmail gratuitas enviam até cerca de 100 e-mails por dia (os códigos de acesso contam); contas Google Workspace, até cerca de 1.500.</div>` : '';
+    <div class="note">Contas Gmail gratuitas enviam até cerca de 100 e-mails por dia (passagens de bastão); contas Google Workspace, até cerca de 1.500.</div>` : '';
   return `<div class="pagehead"><div style="flex:1"><h2>Ajustes</h2></div></div>${conta}${backup}${app}${servidor}`;
 }
 function saveSet() {
@@ -1075,8 +1063,6 @@ document.addEventListener('click', async e => {
   else if (a === 'logout') logoutModal();
   else if (a === 'logoutYes') logout();
   else if (a === 'install') { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; t.hidden = true; } }
-  else if (a === 'loginBack') { LOGIN = { step: 'email', email: LOGIN.email, msg: '' }; render(); }
-  else if (a === 'loginResend') askCode();
   else if (a === 'export') { const blob = new Blob([JSON.stringify(DB, null, 1)], { type: 'application/json' }); const u = URL.createObjectURL(blob); const l = document.createElement('a'); l.href = u; l.download = 'backup-stongel-obras-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(l); l.click(); l.remove(); }
 });
 document.addEventListener('input', e => { if (e.target.id === 'q') { V.q = e.target.value; const pos = e.target.selectionStart; render(); const q = document.getElementById('q'); if (q) { q.focus(); q.setSelectionRange(pos, pos); } } });

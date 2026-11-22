@@ -1,5 +1,5 @@
 // Service worker do app Stongel Obras. Ao publicar mudanças, aumente VERSION.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'stongel-obras-' + VERSION;
 const SHELL = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 

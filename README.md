@@ -6,12 +6,12 @@ App web instalável (PWA) para registrar obras, preencher os formulários OB-01 
 
 ```
 Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──►  Planilha Google
-  cópia local p/ uso offline              login e senha, dados,          abas: obras, forms, team, handoffs,
+  cópia local p/ uso offline              login por código, dados,       abas: obras, forms, team, handoffs,
   fila de envio quando sem internet        envio de e-mails               usuarios, acessos, sessoes, log
 ```
 
-- **Acesso:** e-mail e senha cadastrados pelo administrador na aba `usuarios` (só entra quem tem `ativo = SIM`). Depois do login o aparelho fica conectado por 30 dias.
-- **Controle:** cada tentativa de login fica na aba `acessos` (ok, senha errada, não cadastrado, inativo, bloqueado), e cada aparelho logado fica na aba `sessoes`. Cinco senhas erradas em 15 minutos bloqueiam o e-mail por 15 minutos.
+- **Acesso:** e-mail + código de 6 dígitos, cadastrados pelo administrador na aba `usuarios` (só entra quem tem `ativo = SIM`). Depois do login o aparelho fica conectado por 30 dias.
+- **Controle:** cada tentativa de login fica na aba `acessos` (ok, código errado, não cadastrado, inativo, bloqueado), e cada aparelho logado fica na aba `sessoes`. Cinco códigos errados em 15 minutos bloqueiam o e-mail por 15 minutos.
 - **Offline:** o app abre sem internet e guarda as alterações numa fila; quando a conexão volta, elas vão para a planilha. A cada 30 s o app busca o que os outros mudaram.
 - **Sem servidor configurado** (`config.js` vazio), o app funciona como a versão original: dados só no aparelho e e-mail aberto no programa de e-mail.
 
@@ -40,11 +40,13 @@ Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──�
 ### 3. Liberar pessoas
 Na aba `usuarios`, uma linha por pessoa:
 
-| email | nome | papel | ativo | senha |
+| email | nome | papel | ativo | codigo |
 |---|---|---|---|---|
-| fulano@stongel.com.br | Fulano | encarregado | SIM | uma senha |
+| fulano@stongel.com.br | Fulano | encarregado | SIM | 482913 (gerado sozinho) |
 
-- Ao digitar a senha, a planilha troca o texto por uma versão embaralhada (`sha256:...`), então ninguém consegue ler a senha depois. Para trocar a senha, é só digitar uma nova na mesma célula.
+- Ao digitar o e-mail, a planilha gera sozinha um **código de 6 dígitos** na coluna `codigo`. Passe o e-mail e o código para a pessoa.
+- Para trocar o código: apague a célula (gera outro), digite 6 dígitos à mão, ou use o menu **Stongel → Gerar novo código para a linha selecionada**.
+- O menu **Stongel → Gerar códigos que faltam** preenche quem ainda está sem código.
 - Cadastre você mesmo primeiro, com `papel = admin`.
 
 - Para bloquear alguém: `ativo = NÃO` (vale em até 2 minutos).
@@ -63,7 +65,8 @@ Na aba `usuarios`, uma linha por pessoa:
 - Todos os usuários liberados veem todas as obras; o `papel` ainda é só informativo (permissões por papel ficam para a versão do servidor interno).
 - Se duas pessoas editarem o **mesmo formulário** ao mesmo tempo, vale a última gravação.
 - Gmail gratuito envia ~100 e-mails/dia (passagens de bastão); Google Workspace, ~1.500.
-- O repositório é público: o código e o logo ficam visíveis. Nenhum dado nem senha fica no repositório; os dados ficam na planilha.
+- Os códigos ficam visíveis para quem abre a planilha: compartilhe a planilha só com quem administra.
+- O repositório é público: o código e o logo ficam visíveis. Nenhum dado nem código de acesso fica no repositório; os dados ficam na planilha.
 
 ## Próxima fase
 A migração para o servidor interno (login e senha, controle de acesso por papel) troca apenas o objeto `API` em `index.html` (`login`, `list`, `bulk`, `send`, `logout`). Os dados da planilha já estão em JSON por registro, prontos para importar num banco.

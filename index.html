@@ -444,7 +444,7 @@ const API = {
     if (auth && j && j.error === 'auth') { onAuthLost(); const e = new Error('auth'); e.code = 'auth'; throw e; }
     return j;
   },
-  login: (email, senha) => API.call('login', { email, senha }, false),
+  login: (email, codigo) => API.call('login', { email, codigo }, false),
   list: since => API.call('list', { since }),
   bulk: ops => API.call('bulk', { ops }),
   send: msg => API.call('send', msg),
@@ -552,24 +552,24 @@ async function boot() {
   if (ONLINE() && SET.session) { pull(); startSync(); }
 }
 
-// ================= acesso por e-mail e senha =================
+// ================= acesso por e-mail e código de 6 dígitos =================
 let LOGIN = { email: '', msg: '' };
 const needLogin = () => ONLINE() && !SET.session;
 function viewLogin() {
   const L = LOGIN;
   return `<div class="login card"><img class="lsym" src="${SYM}" alt=""><h2>Formulários de Obras</h2>
-    <p class="muted">Entre com o e-mail e a senha cadastrados pelo administrador.</p>
+    <p class="muted">Entre com seu e-mail e o código de 6 dígitos que o administrador passou para você.</p>
     <form data-login="1">
       <div class="f"><label>E-mail</label><input id="l_email" type="email" autocomplete="username" inputmode="email" required value="${esc(L.email)}"></div>
-      <div class="f" style="margin-top:10px"><label>Senha</label><input id="l_senha" type="password" autocomplete="current-password" required></div>
+      <div class="f" style="margin-top:10px"><label>Código de acesso</label><input id="l_codigo" class="codein" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required title="6 dígitos"></div>
       <button class="btn pri" type="submit" style="width:100%;margin-top:14px">Entrar</button></form>
     ${L.msg ? `<div class="warnbox" style="margin-top:12px;text-align:left">${esc(L.msg)}</div>` : ''}
-    <div class="muted" style="margin-top:16px;font-size:12px">Esqueceu a senha ou não tem acesso? Fale com o administrador do app na Stongel.</div></div>`;
+    <div class="muted" style="margin-top:16px;font-size:12px">Esqueceu o código ou não tem acesso? Fale com o administrador do app na Stongel.</div></div>`;
 }
-async function doLogin(email, senha) {
+async function doLogin(email, codigo) {
   LOGIN.email = email;
   try {
-    const r = await API.login(email, senha);
+    const r = await API.login(email, codigo);
     if (r.ok) {
       SET.session = r.session; SET.user = r.user; lsSet(LSS, SET); applyUser();
       LOGIN = { email: '', msg: '' }; go('obras');
@@ -577,15 +577,15 @@ async function doLogin(email, senha) {
       await pull(); startSync(); return;
     }
     LOGIN.msg = r.error === 'bloqueado' ? 'Muitas tentativas erradas. Aguarde 15 minutos ou fale com o administrador.'
-      : 'E-mail ou senha incorretos' + (r.restantes > 0 && r.restantes <= 2 ? ` (mais ${r.restantes} tentativa${r.restantes > 1 ? 's' : ''} antes do bloqueio)` : '') + '.';
+      : 'E-mail ou código incorretos' + (r.restantes > 0 && r.restantes <= 2 ? ` (mais ${r.restantes} tentativa${r.restantes > 1 ? 's' : ''} antes do bloqueio)` : '') + '.';
   } catch (e) { LOGIN.msg = 'Sem conexão com o servidor. Confira a internet e tente de novo.'; }
-  render(); const el = document.getElementById(LOGIN.email ? 'l_senha' : 'l_email'); if (el) el.focus();
+  render(); const el = document.getElementById(LOGIN.email ? 'l_codigo' : 'l_email'); if (el) el.focus();
 }
 document.addEventListener('submit', e => {
   const f = e.target.closest('[data-login]'); if (!f) return;
   e.preventDefault();
   const b = f.querySelector('button[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
-  doLogin(document.getElementById('l_email').value.trim().toLowerCase(), document.getElementById('l_senha').value);
+  doLogin(document.getElementById('l_email').value.trim().toLowerCase(), document.getElementById('l_codigo').value.replace(/\D/g, ''));
 });
 function logoutModal() {
   showModal(`<h3>Sair deste aparelho?</h3>
@@ -1004,7 +1004,7 @@ function viewAjustes() {
       <li>Cole o código abaixo, selecione a função <b>configurar</b> e clique em <b>Executar</b> (aceite as permissões). Ela cria as abas.</li>
       <li><b>Implantar → Nova implantação → App da Web</b>. Executar como: <b>Eu</b>. Quem pode acessar: <b>Qualquer pessoa</b>. Copie a URL.</li>
       <li>Coloque a URL no arquivo <b>config.js</b> do site (vale para todos) ou, para testar só neste aparelho, no campo abaixo.</li>
-      <li>Para liberar alguém, preencha na aba <b>usuarios</b>: e-mail, nome, papel, ativo = <b>SIM</b> e uma senha (a planilha embaralha a senha ao digitar). Use papel = <b>admin</b> para quem administra.</li></ol>
+      <li>Para liberar alguém, preencha na aba <b>usuarios</b>: e-mail, nome, papel e ativo = <b>SIM</b>. A planilha gera sozinha o <b>código de 6 dígitos</b>; passe e-mail e código para a pessoa. Use papel = <b>admin</b> para quem administra.</li></ol>
     <div class="row"><a class="btn sm" href="${GAS_URL}" target="_blank" rel="noopener" style="text-decoration:none">Ver código</a><button class="btn sm" data-act="copyGas">Copiar código</button></div>
     <div class="fields" style="margin-top:14px"><div class="f wide"><label>URL do App da Web neste aparelho ${CFG.scriptUrl ? '(opcional: substitui a do config.js)' : ''}</label><input id="s_url" value="${esc(SET.scriptUrl || '')}" placeholder="${esc(CFG.scriptUrl || 'https://script.google.com/macros/s/.../exec')}"></div></div>
     <div class="row" style="margin-top:10px"><button class="btn pri" data-act="saveSet">Salvar</button></div>

@@ -1,5 +1,5 @@
 // Stongel · backend do app de Formulários de Obras (POC)
-// Dados, login por e-mail e senha e envio dos e-mails de passagem de bastão, tudo numa Planilha Google.
+// Dados, login por e-mail e código de 6 dígitos e envio dos e-mails de passagem de bastão, tudo numa Planilha Google.
 //
 // COMO INSTALAR (uma vez):
 // 1. Crie uma Planilha Google nova (ex.: "Stongel Obras - dados") na conta que vai enviar os e-mails.
@@ -7,21 +7,22 @@
 // 3. Selecione a função "configurar" e clique em Executar. Aceite as permissões. Ela cria as abas.
 // 4. Implantar → Nova implantação → Tipo: App da Web. Executar como: Eu. Quem pode acessar: Qualquer pessoa.
 //    Copie a URL (termina em /exec) e coloque no arquivo config.js do site.
-// 5. Para liberar alguém: na aba "usuarios", preencha email, nome, papel, ativo = SIM e uma senha.
-//    Ao digitar a senha, a planilha troca o texto por uma versão embaralhada (hash) automaticamente.
-//    Para trocar a senha de alguém, é só digitar uma nova na mesma célula.
+// 5. Para liberar alguém: na aba "usuarios", preencha email, nome, papel e ativo = SIM.
+//    Ao digitar o e-mail, a planilha gera sozinha um código de 6 dígitos na coluna "codigo".
+//    Passe o e-mail e o código para a pessoa. Para trocar o código, apague a célula (gera outro)
+//    ou digite você mesmo 6 dígitos. Menu "Stongel" → "Gerar códigos que faltam" preenche todos.
 //
 // Ao alterar este código depois: Implantar → Gerenciar implantações → editar (lápis) → Versão: Nova versão.
 
 const SESSAO_DIAS = 30;        // quanto tempo o aparelho fica logado
-const MAX_ERROS_15MIN = 5;     // senhas erradas por e-mail a cada 15 minutos antes de bloquear
+const MAX_ERROS_15MIN = 5;     // códigos errados por e-mail a cada 15 minutos antes de bloquear
 const NOME_REMETENTE = 'Stongel Obras';
 
 const KINDS = ['obras', 'forms', 'team', 'handoffs'];
 const CHUNK = 45000; // limite de ~50 mil caracteres por célula: JSON grande é dividido em várias colunas
 
 const ABAS = {
-  usuarios: ['email', 'nome', 'papel', 'ativo', 'senha', 'criadoEm', 'ultimoAcesso'],
+  usuarios: ['email', 'nome', 'papel', 'ativo', 'codigo', 'criadoEm', 'ultimoAcesso'],
   acessos: ['data', 'email', 'resultado'],
   sessoes: ['token', 'email', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
   log: ['Data', 'Obra', 'Cliente', 'Formulário', 'De', 'Para', 'Assunto'],
@@ -35,7 +36,7 @@ function doPost(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (x) { return out({ ok: false, error: 'requisicao' }); }
   try {
-    if (d.action === 'login') return out(login(d.email, d.senha));
+    if (d.action === 'login') return out(login(d.email, d.codigo));
     const s = checkSession(d.session);
     if (!s) return out({ ok: false, error: 'auth' });
     switch (d.action) {
@@ -58,20 +59,56 @@ function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setM
 // ============ instalação ============
 function configurar() {
   Object.keys(ABAS).forEach(sheet);
+  gerarCodigosQueFaltam();
   MailApp.getRemainingDailyQuota(); // pede a permissão de envio de e-mail (passagem de bastão)
-  Logger.log('Pronto. Cadastre os usuários (com senha) na aba "usuarios" e faça a implantação como App da Web.');
+  Logger.log('Pronto. Os códigos de acesso estão na aba "usuarios". Agora faça a implantação como App da Web.');
 }
 
-// Ao digitar uma senha na aba "usuarios", troca o texto pelo hash (a senha não fica legível na planilha).
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Stongel')
+    .addItem('Gerar códigos que faltam', 'gerarCodigosQueFaltam')
+    .addItem('Gerar novo código para a linha selecionada', 'novoCodigoLinhaSelecionada')
+    .addToUi();
+}
+
+// Na aba "usuarios": ao digitar um e-mail sem código, gera um; código digitado à mão precisa ter 6 dígitos.
 function onEdit(e) {
   const sh = e.range.getSheet();
-  if (sh.getName() !== 'usuarios' || e.range.getRow() < 2) return;
-  const col = userCols(sh).senha;
-  if (!col || e.range.getColumn() > col || e.range.getLastColumn() < col) return;
-  for (let r = e.range.getRow(); r <= e.range.getLastRow(); r++) {
-    const c = sh.getRange(r, col), v = String(c.getValue() || '');
-    if (v && v.indexOf('sha256:') !== 0) c.setValue(hashSenha(v));
+  if (sh.getName() !== 'usuarios' || e.range.getLastRow() < 2) return;
+  const c = userCols(sh);
+  if (!c.email || !c.codigo) return;
+  for (let r = Math.max(2, e.range.getRow()); r <= e.range.getLastRow(); r++) {
+    const email = norm(sh.getRange(r, c.email).getValue()), cel = sh.getRange(r, c.codigo);
+    const v = String(cel.getDisplayValue() || '').trim();
+    if (email && !v) cel.setNumberFormat('@').setValue(novoCodigo());
+    else if (v && !/^\d{6}$/.test(v)) cel.setNumberFormat('@').setValue(/^\d{1,6}$/.test(v) ? ('00000' + v).slice(-6) : novoCodigo());
+    if (email && c.criadoem && !sh.getRange(r, c.criadoem).getValue()) sh.getRange(r, c.criadoem).setValue(new Date());
   }
+}
+
+function novoCodigo() {
+  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid());
+  const n = ((b[0] & 255) * 16777216 + (b[1] & 255) * 65536 + (b[2] & 255) * 256 + (b[3] & 255)) % 1000000;
+  return ('00000' + n).slice(-6);
+}
+
+function gerarCodigosQueFaltam() {
+  const sh = sheet('usuarios'), c = userCols(sh), n = sh.getLastRow();
+  if (n < 2 || !c.email || !c.codigo) return;
+  sh.getRange(2, c.codigo, n - 1, 1).setNumberFormat('@');
+  let k = 0;
+  for (let r = 2; r <= n; r++) {
+    const cel = sh.getRange(r, c.codigo);
+    if (norm(sh.getRange(r, c.email).getValue()) && !/^\d{6}$/.test(String(cel.getDisplayValue()).trim())) { cel.setValue(novoCodigo()); k++; }
+  }
+  Logger.log(k + ' código(s) gerado(s).');
+}
+
+function novoCodigoLinhaSelecionada() {
+  const sh = SpreadsheetApp.getActiveSheet(), r = sh.getActiveRange().getRow();
+  if (sh.getName() !== 'usuarios' || r < 2) { SpreadsheetApp.getUi().alert('Selecione uma linha da aba "usuarios".'); return; }
+  const c = userCols(sh);
+  sh.getRange(r, c.codigo).setNumberFormat('@').setValue(novoCodigo());
 }
 
 function sheet(name) {
@@ -86,6 +123,8 @@ function sheet(name) {
   }
   else if (name === 'usuarios') {
     const head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(norm);
+    const old = head.indexOf('senha');
+    if (old >= 0 && head.indexOf('codigo') < 0) { sh.getRange(1, old + 1).setValue('codigo'); head[old] = 'codigo'; }
     ABAS.usuarios.forEach(c => { if (head.indexOf(c) < 0) { head.push(c); sh.getRange(1, head.length).setValue(c).setFontWeight('bold'); } });
   }
   return sh;
@@ -123,34 +162,22 @@ function findUser(email) {
   const r = sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
   const g = (row, k) => c[k] ? row[c[k] - 1] : '';
   for (let i = 0; i < r.length; i++) if (norm(g(r[i], 'email')) === email)
-    return { row: i + 2, cols: c, email, nome: String(g(r[i], 'nome') || ''), papel: String(g(r[i], 'papel') || ''), ativo: norm(g(r[i], 'ativo')) === 'sim', senha: String(g(r[i], 'senha') || '') };
+    return { row: i + 2, cols: c, email, nome: String(g(r[i], 'nome') || ''), papel: String(g(r[i], 'papel') || ''), ativo: norm(g(r[i], 'ativo')) === 'sim', codigo: c.codigo ? String(sh.getRange(i + 2, c.codigo).getDisplayValue()).trim() : '' };
   return null;
 }
 
-function hashSenha(senha) {
-  const salt = Utilities.getUuid().replace(/-/g, '').slice(0, 16);
-  return 'sha256:' + salt + ':' + sha(salt + ':' + senha);
-}
-function confereSenha(guardada, senha) {
-  if (!guardada) return false;
-  if (guardada.indexOf('sha256:') !== 0) return guardada === senha; // ainda em texto (antes do onEdit)
-  const p = guardada.split(':');
-  return sha(p[1] + ':' + senha) === p[2];
-}
-
-function login(email, senha) {
-  email = norm(email); senha = String(senha || '');
-  if (!email || !senha) return { ok: false, error: 'login' };
+function login(email, codigo) {
+  email = norm(email); codigo = String(codigo || '').replace(/\D/g, '');
+  if (!email || codigo.length !== 6) return { ok: false, error: 'login' };
   return withLock(() => {
     const log = sheet('acessos'), now = new Date();
-    const erros = rows('acessos').filter(r => norm(r[1]) === email && now - new Date(r[0]) < 15 * 60000 && String(r[2]).indexOf('senha errada') === 0).length;
+    const erros = rows('acessos').filter(r => norm(r[1]) === email && now - new Date(r[0]) < 15 * 60000 && String(r[2]).indexOf('código errado') === 0).length;
     if (erros >= MAX_ERROS_15MIN) { log.appendRow([now, email, 'bloqueado (muitas tentativas)']); return { ok: false, error: 'bloqueado' }; }
     const u = findUser(email);
     if (!u) { log.appendRow([now, email, 'não cadastrado']); return { ok: false, error: 'login' }; }
     if (!u.ativo) { log.appendRow([now, email, 'inativo']); return { ok: false, error: 'login' }; }
-    if (!confereSenha(u.senha, senha)) { log.appendRow([now, email, 'senha errada']); return { ok: false, error: 'login', restantes: MAX_ERROS_15MIN - erros - 1 }; }
+    if (!/^\d{6}$/.test(u.codigo) || u.codigo !== codigo) { log.appendRow([now, email, 'código errado']); return { ok: false, error: 'login', restantes: MAX_ERROS_15MIN - erros - 1 }; }
     const sh = sheet('usuarios');
-    if (u.senha.indexOf('sha256:') !== 0) sh.getRange(u.row, u.cols.senha).setValue(hashSenha(senha));
     if (u.cols.ultimoacesso) sh.getRange(u.row, u.cols.ultimoacesso).setValue(now);
     const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
     sheet('sessoes').appendRow([token, email, now, new Date(now.getTime() + SESSAO_DIAS * 86400000), now, '']);

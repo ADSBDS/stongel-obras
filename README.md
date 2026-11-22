@@ -14,6 +14,8 @@ Celular / PC (PWA no GitHub Pages)  ──►  Apps Script (App da Web)  ──�
 - **Controle:** cada tentativa de login fica na aba `acessos` (ok, código errado, não cadastrado, inativo, bloqueado), e cada aparelho logado fica na aba `sessoes`. Cinco códigos errados em 15 minutos bloqueiam o e-mail por 15 minutos.
 - **Offline:** o app abre sem internet e guarda as alterações numa fila; quando a conexão volta, elas vão para a planilha. A cada 30 s o app busca o que os outros mudaram.
 - **Sem servidor configurado** (`config.js` vazio), o app funciona como a versão original: dados só no aparelho e e-mail aberto no programa de e-mail.
+- **Formulários:** OB-01 a OB-21 ficam dentro de cada obra, organizados pelas etapas do manual. O OB-22 (Matriz de Habilidades) é geral, não pertence a uma obra.
+- **Ajustes:** "Sincronizar agora", "Enviar e-mail de teste para mim" (confere se o envio pela planilha funciona), **Baixar backup** (arquivo `.json` com todos os dados do aparelho) e **Restaurar backup**. Conectado à planilha, restaurar envia todos os registros do backup para ela e substitui os de mesmo código.
 
 ## Arquivos
 
@@ -58,7 +60,7 @@ Na aba `usuarios`, uma linha por pessoa:
 
 ## Mudou o código?
 - **Apps Script:** Implantar → Gerenciar implantações → ✏️ → Versão: **Nova versão** (a URL continua a mesma).
-- **Site:** depois de alterar `index.html`, aumente `VERSION` em `sw.js` para os aparelhos pegarem a versão nova.
+- **Site:** com internet, o app sempre busca `index.html` e `config.js` direto do GitHub Pages, então os aparelhos pegam a versão nova sozinhos. Mesmo assim, aumente `VERSION` em `sw.js` a cada mudança para renovar a cópia offline.
 
 ## Limites desta POC
 - Todos os usuários liberados veem todas as obras; o `papel` ainda é só informativo (permissões por papel ficam para a versão do servidor interno).

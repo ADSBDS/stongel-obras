@@ -2,5 +2,5 @@
 // sem um código de acesso válido ninguém lê nem grava dados.
 // Deixe vazio para usar o app em "modo local" (dados só no aparelho, como na versão original).
 window.STONGEL_CONFIG = {
-  scriptUrl: ''
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbwyOqTtLDuKioGTkEexSi9UKidrJpa1pv-y1NocJVuvAPvPVkLBzSCbsOqXce9s-fEi/exec'
 };

@@ -668,7 +668,7 @@ function viewObras() {
   }).join('');
   return `<div class="pagehead"><div style="flex:1"><h2>Obras</h2><div class="muted">Cada obra reúne os formulários OB-01 a OB-21, organizados pelas 7 etapas do manual.</div></div>
     ${readOnly ? '' : '<button class="btn pri" data-act="novaObra">+ Nova obra</button>'}</div>
-    ${!ONLINE() ? '<div class="info">Modo local: os dados ficam só neste aparelho e os e-mails abrem no seu programa de e-mail. Para compartilhar com a equipe, configure o servidor em <b>Ajustes</b>.</div>' : ''}
+    ${!ONLINE() ? '<div class="info">Modo local: os dados ficam só neste aparelho e os e-mails abrem no seu programa de e-mail. Para compartilhar com a equipe, o administrador precisa configurar o servidor.</div>' : ''}
     ${!ONLINE() && !SET.myName ? '<div class="warnbox">Informe seu nome e e-mail em <b>Ajustes</b>: eles aparecem como remetente na passagem de bastão.</div>' : ''}
     ${obras.length > 3 ? `<input placeholder="Buscar obra ou cliente…" id="q" value="${esc(V.q || '')}" style="margin-bottom:14px">` : ''}
     ${list.length ? `<div class="grid">${cards}</div>` : `<div class="empty"><img src="${SYM}"><div>Nenhuma obra cadastrada ainda.</div><div class="muted">Clique em <b>+ Nova obra</b> para começar pelo Laudo de Visita Técnica.</div></div>`}`;
@@ -977,10 +977,8 @@ async function saveTeam() {
 }
 
 // ================= ajustes =================
-const GAS_URL = 'apps-script/Code.gs';
 function viewAjustes() {
   const online = ONLINE(), logged = online && SET.session;
-  const admin = !online || (SET.user && String(SET.user.papel).toLowerCase() === 'admin');
   const conta = logged ? `<div class="sec">Sua conta</div>
     <div class="card row" style="justify-content:space-between"><div><b>${esc(ME.name)}</b><div class="muted">${esc(ME.email)}${SET.user && SET.user.papel ? ' · ' + esc(SET.user.papel) : ''}</div></div><button class="btn danger" data-act="logout">Sair deste aparelho</button></div>
     <div class="sec">Sincronização</div>
@@ -997,19 +995,7 @@ function viewAjustes() {
   const app = `<div class="sec">Aplicativo</div>
     <div class="row"><button class="btn" data-act="install" id="installBtn" ${deferredInstall ? '' : 'hidden'}>Instalar app neste aparelho</button></div>
     <div class="note">No iPhone: abra no Safari → Compartilhar → "Adicionar à Tela de Início". No Android: menu do Chrome → "Instalar app" ou "Adicionar à tela inicial".</div>`;
-  const servidor = admin ? `<div class="sec">Servidor (planilha Google + Apps Script)</div>
-    <div class="info">Configuração única, feita pelo administrador. O passo a passo completo está no README do repositório.</div>
-    <ol style="font-size:14px;line-height:1.7;margin-top:0">
-      <li>Crie uma Planilha Google na conta que vai enviar os e-mails e abra <b>Extensões → Apps Script</b>.</li>
-      <li>Cole o código abaixo, selecione a função <b>configurar</b> e clique em <b>Executar</b> (aceite as permissões). Ela cria as abas.</li>
-      <li><b>Implantar → Nova implantação → App da Web</b>. Executar como: <b>Eu</b>. Quem pode acessar: <b>Qualquer pessoa</b>. Copie a URL.</li>
-      <li>Coloque a URL no arquivo <b>config.js</b> do site (vale para todos) ou, para testar só neste aparelho, no campo abaixo.</li>
-      <li>Para liberar alguém, preencha na aba <b>usuarios</b>: e-mail, nome, papel e ativo = <b>SIM</b>. A planilha gera sozinha o <b>código de 6 dígitos</b>; passe e-mail e código para a pessoa. Use papel = <b>admin</b> para quem administra.</li></ol>
-    <div class="row"><a class="btn sm" href="${GAS_URL}" target="_blank" rel="noopener" style="text-decoration:none">Ver código</a><button class="btn sm" data-act="copyGas">Copiar código</button></div>
-    <div class="fields" style="margin-top:14px"><div class="f wide"><label>URL do App da Web neste aparelho ${CFG.scriptUrl ? '(opcional: substitui a do config.js)' : ''}</label><input id="s_url" value="${esc(SET.scriptUrl || '')}" placeholder="${esc(CFG.scriptUrl || 'https://script.google.com/macros/s/.../exec')}"></div></div>
-    <div class="row" style="margin-top:10px"><button class="btn pri" data-act="saveSet">Salvar</button></div>
-    <div class="note">Contas Gmail gratuitas enviam até cerca de 100 e-mails por dia (passagens de bastão); contas Google Workspace, até cerca de 1.500.</div>` : '';
-  return `<div class="pagehead"><div style="flex:1"><h2>Ajustes</h2></div></div>${conta}${backup}${app}${servidor}`;
+  return `<div class="pagehead"><div style="flex:1"><h2>Ajustes</h2></div></div>${conta}${backup}${app}`;
 }
 function saveSet() {
   const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : undefined; };
@@ -1058,7 +1044,6 @@ document.addEventListener('click', async e => {
   else if (a === 'saveTeam') saveTeam();
   else if (a === 'saveSet') saveSet();
   else if (a === 'testMail') testMail();
-  else if (a === 'copyGas') { try { copy(await (await fetch(GAS_URL)).text()); } catch (x) { toast('Abra "Ver código" e copie manualmente.'); } }
   else if (a === 'syncNow') { await flush(); await pull(); render(); toast(OUTBOX.length ? 'Ainda há alterações pendentes.' : 'Sincronizado.'); }
   else if (a === 'logout') logoutModal();
   else if (a === 'logoutYes') logout();

@@ -51,7 +51,6 @@ Na aba `usuarios`, uma linha por pessoa:
 
 - Para bloquear alguém: `ativo = NÃO` (vale em até 2 minutos).
 - Para derrubar um aparelho específico: na aba `sessoes`, coluna `revogado = SIM`.
-- Quem tem `papel = admin` vê a área "Servidor" em Ajustes.
 
 ### Instalar no celular
 - **Android (Chrome):** abrir o link → menu ⋮ → **Instalar app**.
